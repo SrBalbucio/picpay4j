@@ -72,4 +72,17 @@
             </plugin>
         </plugins>
     </build>
+
+    <distributionManagement>
+        <repository>
+            <id>hyperpowered-maven-releases</id>
+            <name>HyperPowered Maven Repository</name>
+            <url>https://maven.dev.hyperpowered.net/releases</url>
+        </repository>
+        <snapshotRepository>
+            <id>hyperpowered-maven-snapshots</id>
+            <name>HyperPowered Maven Repository</name>
+            <url>https://maven.dev.hyperpowered.net/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
