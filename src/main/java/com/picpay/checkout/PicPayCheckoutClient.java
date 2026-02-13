@@ -34,6 +34,7 @@ import java.util.Objects;
 public final class PicPayCheckoutClient {
 
     private static final String ECOMMERCE_PAYMENTS_PATH = "/ecommerce/public/payments";
+    private static final String CHARGE_REFUND_PATH = "/charge/%s/refund";
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
     private final PicPayCheckoutConfig config;
@@ -161,5 +162,73 @@ public final class PicPayCheckoutClient {
      */
     public WebhookEvent parseWebhookEvent(InputStream body, String eventTypeHeader) throws IOException {
         return WebhookParser.parseFromStream(body, eventTypeHeader);
+    }
+
+    // ---------- Refund (Cancelamento) ----------
+
+    /**
+     * Realiza cancelamento (refund) total ou parcial de uma cobrança.
+     * <p>
+     * <b>Requisito:</b> o cliente deve estar configurado com OAuth 2.0 (API de Checkout).
+     * O cancelamento não está disponível na API E-commerce (sellerToken).
+     * <p>
+     * Para cancelamento <b>total</b>: use {@link RefundRequest#total()}.
+     * Para cancelamento <b>parcial</b>: use {@link RefundRequest#partial(int)} ou
+     * {@link RefundRequest#partial(java.math.BigDecimal)}.
+     * <p>
+     * Após uma tentativa de cancelamento sem sucesso, aguarde 3 minutos antes de tentar novamente.
+     *
+     * @param merchantChargeId identificador externo único da cobrança (6-36 caracteres, alfanumérico com hífens)
+     * @param request           requisição de cancelamento (total ou parcial)
+     * @return resposta com dados atualizados da cobrança após o cancelamento
+     * @throws PicPayApiException se a API retornar erro ou se o cliente não estiver configurado com OAuth
+     * @see <a href="https://developers-business.picpay.com/checkout/docs/api/charge-refund">Cancelamento de cobrança</a>
+     * @see <a href="https://developers-business.picpay.com/checkout/docs/features/total_and_parcial_cancelation">Cancelamento Parcial e Total</a>
+     */
+    public RefundResponse refundCharge(String merchantChargeId, RefundRequest request) {
+        if (!config.isUseOAuth()) {
+            throw new IllegalStateException(
+                    "Refund requer OAuth 2.0 (API de Checkout). Use PicPayCheckoutConfig.oauth(clientId, clientSecret)");
+        }
+        if (merchantChargeId == null || merchantChargeId.isBlank()) {
+            throw new IllegalArgumentException("merchantChargeId é obrigatório");
+        }
+        if (request == null) {
+            throw new IllegalArgumentException("request não pode ser nulo");
+        }
+
+        String url = config.getBaseUrl() + String.format(CHARGE_REFUND_PATH, merchantChargeId);
+        String bodyStr = gson.toJson(request);
+
+        Request.Builder reqBuilder = new Request.Builder()
+                .url(url)
+                .post(RequestBody.create(bodyStr, JSON))
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Bearer " + tokenProvider.getAccessToken());
+
+        Request httpRequest = reqBuilder.build();
+
+        try (Response response = httpClient.newCall(httpRequest).execute()) {
+            ResponseBody responseBody = response.body();
+            String responseStr = responseBody != null ? responseBody.string() : "";
+
+            if (!response.isSuccessful()) {
+                ApiErrorResponse error = parseError(responseStr);
+                String message = error != null && error.getMessage() != null
+                        ? error.getMessage()
+                        : ("HTTP " + response.code());
+                throw new PicPayApiException(message, response.code(), responseStr,
+                        error != null ? error.getBusinessCode() : null);
+            }
+
+            RefundResponse result = gson.fromJson(responseStr, RefundResponse.class);
+            if (result == null) {
+                throw new PicPayApiException("Resposta vazia da API", response.code(), responseStr);
+            }
+            return result;
+        } catch (IOException e) {
+            throw new PicPayApiException("Erro ao chamar API PicPay", e);
+        }
     }
 }

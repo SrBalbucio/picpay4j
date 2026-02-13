@@ -206,6 +206,54 @@ WebhookEvent event = client.parseWebhookEvent(request.getInputStream(), request.
 
 Documentação: [Webhook PicPay](https://developers-business.picpay.com/checkout/docs/webhook).
 
+## Cancelamento (Refund)
+
+O SDK permite realizar cancelamento **total** ou **parcial** de uma cobrança. O cancelamento está disponível apenas na **API de Checkout** (OAuth 2.0), não na API E-commerce.
+
+### Cancelamento total
+
+Cancela o valor completo da cobrança:
+
+```java
+import com.picpay.checkout.model.RefundRequest;
+
+// merchantChargeId é o ID que você passou ao criar o pagamento (referenceId ou picpayTransactionId)
+String merchantChargeId = "PEDIDO-12345";
+
+RefundRequest request = RefundRequest.total();
+RefundResponse response = client.refundCharge(merchantChargeId, request);
+
+String status = response.getChargeStatus(); // ex.: REFUNDED, PARTIAL
+Integer refundedAmount = response.getRefundedAmount();
+```
+
+### Cancelamento parcial
+
+Cancela apenas uma parte do valor (em centavos ou BigDecimal):
+
+```java
+// Cancelar R$ 50,00 de uma cobrança de R$ 100,00
+RefundRequest partialRequest = RefundRequest.partial(new BigDecimal("50.00"));
+// Ou: RefundRequest.partial(5000); // 5000 centavos = R$ 50,00
+
+RefundResponse response = client.refundCharge(merchantChargeId, partialRequest);
+
+if ("PARTIAL".equals(response.getChargeStatus())) {
+    // Cancelamento parcial realizado
+    Integer originalAmount = response.getOriginalAmount(); // 10000 centavos
+    Integer refundedAmount = response.getRefundedAmount(); // 5000 centavos
+    Integer remainingAmount = response.getAmount(); // 5000 centavos restantes
+}
+```
+
+### Requisitos
+
+- O cliente deve estar configurado com **OAuth 2.0** (`PicPayCheckoutConfig.oauth(...)`).
+- O `merchantChargeId` deve ser o identificador externo único da cobrança (6-36 caracteres).
+- Após uma tentativa de cancelamento sem sucesso, aguarde **3 minutos** antes de tentar novamente.
+
+Documentação: [Cancelamento de cobrança](https://developers-business.picpay.com/checkout/docs/api/charge-refund) | [Cancelamento Parcial e Total](https://developers-business.picpay.com/checkout/docs/features/total_and_parcial_cancelation).
+
 ## Tratamento de erros
 
 ```java
