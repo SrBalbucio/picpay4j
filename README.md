@@ -15,7 +15,7 @@ Adicione a dependência ao seu `pom.xml` (ou instale localmente com `mvn install
 <dependency>
     <groupId>balbucio.picpay4j</groupId>
     <artifactId>picpay4j</artifactId>
-    <version>1.0.0</version>
+    <version>1.2.0</version>
 </dependency>
 ```
 
