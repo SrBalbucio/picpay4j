@@ -254,6 +254,99 @@ if ("PARTIAL".equals(response.getChargeStatus())) {
 
 Documentação: [Cancelamento de cobrança](https://developers-business.picpay.com/checkout/docs/api/charge-refund) | [Cancelamento Parcial e Total](https://developers-business.picpay.com/checkout/docs/features/total_and_parcial_cancelation).
 
+## Cobrança PIX com QRCode
+
+O SDK permite criar cobranças PIX diretamente via API, gerando um QRCode que o consumidor pode pagar via leitura do código ou "Pix Copia e Cola". O pagamento pode ser realizado uma única vez, respeitando o prazo de expiração configurado.
+
+### Requisitos
+
+- O cliente deve estar configurado com **OAuth 2.0** (`PicPayCheckoutConfig.oauth(...)`).
+- Informações do dispositivo são obrigatórias para análise antifraude.
+
+### Exemplo: Criar cobrança PIX
+
+```java
+import com.picpay.checkout.model.*;
+
+// Cliente
+ChargeCustomer customer = ChargeCustomer.builder()
+    .name("João Silva")
+    .email("joao@example.com")
+    .documentTypeCpf()
+    .document("12345678909")
+    .build();
+
+// Telefone
+ChargePhone phone = ChargePhone.builder()
+    .countryCode("55")
+    .areaCode("11")
+    .number("987654321")
+    .typeMobile()
+    .build();
+
+// Informações do dispositivo (obrigatório para antifraude)
+DeviceInformation device = DeviceInformation.builder()
+    .ip("192.168.1.1")  // IP do cliente
+    .sessionId("session-123")
+    .ipCountryCode("BRA")
+    .ipCity("São Paulo")
+    .ipRegion("SP")
+    .build();
+
+// Transação PIX
+ChargePixTransaction transaction = ChargePixTransaction.builder()
+    .amount(new BigDecimal("100.00"))  // R$ 100,00
+    .pixExpiration(600)  // QRCode expira em 600 segundos (10 minutos)
+    .build();
+
+// Requisição de cobrança
+ChargePixRequest request = ChargePixRequest.builder()
+    .paymentSourceGateway()  // ou paymentSourceCheckout() se usar checkout
+    .merchantChargeId("PEDIDO-PIX-12345")  // opcional, será gerado se não informado
+    .customer(customer)
+    .phone(phone)
+    .deviceInformation(device)
+    .transactions(List.of(transaction))
+    .build();
+
+// Criar cobrança PIX
+RefundResponse response = client.createPixCharge(request);
+
+// Obter QRCode PIX
+if (response.getTransactions() != null && !response.getTransactions().isEmpty()) {
+    RefundTransaction tx = response.getTransactions().get(0);
+    if (tx.getPix() != null) {
+        String qrCode = tx.getPix().getQrCode();  // QRCode para exibir/ler
+        String qrCodeBase64 = tx.getPix().getQrCodeBase64();  // QRCode em base64 (imagem)
+        String endToEndId = tx.getPix().getEndToEndId();  // ID end-to-end do PIX
+    }
+}
+```
+
+### Uso com Checkout Padrão/Lightbox
+
+Se você está usando checkout padrão ou lightbox, informe o `smartCheckoutId`:
+
+```java
+ChargePixRequest request = ChargePixRequest.builder()
+    .paymentSourceCheckout()
+    .smartCheckoutId("smart-checkout-uuid-aqui")
+    .customer(customer)
+    .phone(phone)
+    .deviceInformation(device)
+    .transactions(List.of(transaction))
+    .build();
+```
+
+### Webhook PIX
+
+O webhook já suporta eventos PIX através de `WebhookTransaction.getPix()` que contém:
+- `qrCode` e `qrCodeBase64`
+- `endToEndId`
+- `payer` (dados do pagador quando disponível)
+
+Documentação: [Cobrança PIX](https://developers-business.picpay.com/checkout/docs/api/charge-pix) | [PIX](https://developers-business.picpay.com/checkout/docs/features/pix).
+
 ## Tratamento de erros
 
 ```java

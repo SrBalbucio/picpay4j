@@ -6,7 +6,7 @@
 
     <groupId>balbucio.picpay4j</groupId>
     <artifactId>picpay4j</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <packaging>jar</packaging>
     <name>PicPay Checkout SDK for Java</name>
     <description>SDK Java para integração com o PicPay Checkout Padrão (backend)</description>

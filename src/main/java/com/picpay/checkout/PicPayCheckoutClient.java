@@ -35,6 +35,7 @@ public final class PicPayCheckoutClient {
 
     private static final String ECOMMERCE_PAYMENTS_PATH = "/ecommerce/public/payments";
     private static final String CHARGE_REFUND_PATH = "/charge/%s/refund";
+    private static final String CHARGE_PIX_PATH = "/charge/pix";
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
     private final PicPayCheckoutConfig config;
@@ -198,6 +199,67 @@ public final class PicPayCheckoutClient {
         }
 
         String url = config.getBaseUrl() + String.format(CHARGE_REFUND_PATH, merchantChargeId);
+        String bodyStr = gson.toJson(request);
+
+        Request.Builder reqBuilder = new Request.Builder()
+                .url(url)
+                .post(RequestBody.create(bodyStr, JSON))
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Bearer " + tokenProvider.getAccessToken());
+
+        Request httpRequest = reqBuilder.build();
+
+        try (Response response = httpClient.newCall(httpRequest).execute()) {
+            ResponseBody responseBody = response.body();
+            String responseStr = responseBody != null ? responseBody.string() : "";
+
+            if (!response.isSuccessful()) {
+                ApiErrorResponse error = parseError(responseStr);
+                String message = error != null && error.getMessage() != null
+                        ? error.getMessage()
+                        : ("HTTP " + response.code());
+                throw new PicPayApiException(message, response.code(), responseStr,
+                        error != null ? error.getBusinessCode() : null);
+            }
+
+            RefundResponse result = gson.fromJson(responseStr, RefundResponse.class);
+            if (result == null) {
+                throw new PicPayApiException("Resposta vazia da API", response.code(), responseStr);
+            }
+            return result;
+        } catch (IOException e) {
+            throw new PicPayApiException("Erro ao chamar API PicPay", e);
+        }
+    }
+
+    // ---------- Charge PIX ----------
+
+    /**
+     * Cria uma cobrança PIX com QRCode para pagamento.
+     * <p>
+     * Gera um QR Code PIX que o consumidor pode pagar via leitura do código ou pela
+     * funcionalidade "Pix Copia e Cola". O pagamento pode ser realizado uma única vez,
+     * respeitando o prazo de expiração configurado.
+     * <p>
+     * <b>Requisito:</b> o cliente deve estar configurado com OAuth 2.0 (API de Checkout).
+     *
+     * @param request dados da cobrança PIX (cliente, telefone, dispositivo, transação)
+     * @return resposta com QRCode PIX e dados da cobrança criada
+     * @throws PicPayApiException se a API retornar erro ou se o cliente não estiver configurado com OAuth
+     * @see <a href="https://developers-business.picpay.com/checkout/docs/api/charge-pix">Cobrança PIX</a>
+     * @see <a href="https://developers-business.picpay.com/checkout/docs/features/pix">PIX</a>
+     */
+    public RefundResponse createPixCharge(ChargePixRequest request) {
+        if (!config.isUseOAuth()) {
+            throw new IllegalStateException(
+                    "Charge PIX requer OAuth 2.0 (API de Checkout). Use PicPayCheckoutConfig.oauth(clientId, clientSecret)");
+        }
+        if (request == null) {
+            throw new IllegalArgumentException("request não pode ser nulo");
+        }
+
+        String url = config.getBaseUrl() + CHARGE_PIX_PATH;
         String bodyStr = gson.toJson(request);
 
         Request.Builder reqBuilder = new Request.Builder()
